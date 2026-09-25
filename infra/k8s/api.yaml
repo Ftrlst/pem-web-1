@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kletak-api
+  namespace: kletak
+  labels:
+    app: kletak-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kletak-api
+  template:
+    metadata:
+      labels:
+        app: kletak-api
+    spec:
+      initContainers:
+        - name: migrate
+          image: ghcr.io/OWNER/kletak-api:VERSION
+          command:
+            [
+              'node_modules/.bin/prisma',
+              'migrate',
+              'deploy',
+              '--schema',
+              'apps/api/prisma/schema.prisma',
+            ]
+          envFrom:
+            - configMapRef:
+                name: kletak-config
+            - secretRef:
+                name: kletak-secrets
+      containers:
+        - name: api
+          image: ghcr.io/OWNER/kletak-api:VERSION
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: kletak-config
+            - secretRef:
+                name: kletak-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 4000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kletak-api
+  namespace: kletak
+spec:
+  selector:
+    app: kletak-api
+  ports:
+    - name: http
+      port: 4000
+      targetPort: 4000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kletak-api
+  namespace: kletak
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kletak-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65

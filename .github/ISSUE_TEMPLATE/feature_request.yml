@@ -1,0 +1,30 @@
+name: Feature request
+description: Mengusulkan fitur atau perbaikan proses
+title: '[FEATURE] '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah yang diselesaikan
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Usulan solusi
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Web/PWA, API, Inventory, Payment, Accounting, DevOps, Dokumentasi]
+    validations:
+      required: true

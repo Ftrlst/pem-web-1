@@ -1,0 +1,421 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  SELLER
+  OWNER
+  ADMIN
+}
+
+enum ProductMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  DAMAGE
+  EXPIRED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  PACKED
+  READY_DELIVERY
+  READY_PICKUP
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  TRANSFER
+  QRIS
+  EWALLET
+  COD
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum FulfillmentMethod {
+  DELIVERY
+  PICKUP
+}
+
+enum ReservationStatus {
+  ACTIVE
+  CONSUMED
+  RELEASED
+  EXPIRED
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalStatus {
+  POSTED
+  REVERSED
+}
+
+enum ChatSenderType {
+  CUSTOMER
+  SELLER
+  STAFF
+  OWNER
+  BOT
+}
+
+model Outlet {
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String          @unique
+  timezone       String          @default("Asia/Jakarta")
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+  users          User[]
+  products       Product[]
+  orders         Order[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+  chatRooms      ChatRoom[]
+}
+
+model User {
+  id              String               @id @default(uuid()) @db.Uuid
+  outletId        String?              @db.Uuid
+  name            String
+  email           String               @unique
+  phone           String?
+  passwordHash    String
+  role            UserRole             @default(CUSTOMER)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(6)
+  outlet          Outlet?              @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  orders          Order[]
+  createdProducts Product[]            @relation("ProductCreator")
+  stockMovements  StockMovement[]      @relation("StockMovementActor")
+  statusChanges   OrderStatusHistory[] @relation("StatusChanger")
+  customerRooms   ChatRoom[]           @relation("CustomerRooms")
+  sellerRooms     ChatRoom[]           @relation("SellerRooms")
+  chatMessages    ChatMessage[]
+  refreshTokens   RefreshToken[]
+
+  @@index([outletId, role])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  familyId  String
+  expiresAt DateTime  @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([familyId])
+}
+
+model Product {
+  id             String                 @id @default(uuid()) @db.Uuid
+  outletId       String                 @db.Uuid
+  createdById    String?                @db.Uuid
+  name           String
+  category       String
+  priceIdr       BigInt
+  stock          Int                    @default(0)
+  reservedStock  Int                    @default(0)
+  minStock       Int                    @default(5)
+  description    String?
+  imageUrl       String?
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @db.Timestamptz(6)
+  outlet         Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  createdBy      User?                  @relation("ProductCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  orderItems     OrderItem[]
+  reservations   InventoryReservation[]
+  stockMovements StockMovement[]
+
+  @@unique([outletId, name])
+  @@index([outletId, isActive])
+  @@index([outletId, category])
+  @@index([outletId, stock])
+}
+
+model Order {
+  id                String                 @id @default(uuid()) @db.Uuid
+  outletId          String                 @db.Uuid
+  userId            String?                @db.Uuid
+  orderNumber       String                 @unique
+  idempotencyKey    String?
+  status            OrderStatus            @default(PENDING)
+  paymentMethod     PaymentMethod
+  fulfillmentMethod FulfillmentMethod
+  customerName      String
+  customerPhone     String?
+  deliveryAddress   String?
+  pickupLocation    String?
+  scheduledDate     DateTime               @db.Date
+  subtotalIdr       BigInt
+  shippingIdr       BigInt                 @default(0)
+  totalIdr          BigInt
+  customerNote      String?
+  trackingTokenHash String?
+  createdAt         DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(6)
+  outlet            Outlet                 @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  user              User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items             OrderItem[]
+  payments          Payment[]
+  reservations      InventoryReservation[]
+  statusHistory     OrderStatusHistory[]
+
+  @@unique([outletId, idempotencyKey])
+  @@index([outletId, status, createdAt])
+  @@index([userId, createdAt])
+  @@index([idempotencyKey])
+  @@index([trackingTokenHash])
+}
+
+model OrderItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  orderId      String  @db.Uuid
+  productId    String  @db.Uuid
+  productName  String
+  quantity     Int
+  unitPriceIdr BigInt
+  subtotalIdr  BigInt
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderId     String       @db.Uuid
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  changedById String?      @db.Uuid
+  note        String?
+  createdAt   DateTime     @default(now()) @db.Timestamptz(6)
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   User?        @relation("StatusChanger", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+}
+
+model InventoryReservation {
+  id         String            @id @default(uuid()) @db.Uuid
+  orderId    String            @db.Uuid
+  productId  String            @db.Uuid
+  quantity   Int
+  status     ReservationStatus @default(ACTIVE)
+  expiresAt  DateTime          @db.Timestamptz(6)
+  createdAt  DateTime          @default(now()) @db.Timestamptz(6)
+  releasedAt DateTime?         @db.Timestamptz(6)
+  order      Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId])
+  @@index([productId, status, expiresAt])
+}
+
+model StockMovement {
+  id            String              @id @default(uuid()) @db.Uuid
+  outletId      String              @db.Uuid
+  productId     String              @db.Uuid
+  createdById   String?             @db.Uuid
+  type          ProductMovementType
+  quantity      Int
+  stockBefore   Int
+  stockAfter    Int
+  reason        String
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime            @default(now()) @db.Timestamptz(6)
+  outlet        Outlet              @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  product       Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy     User?               @relation("StockMovementActor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@index([outletId, createdAt])
+}
+
+model Payment {
+  id                    String        @id @default(uuid()) @db.Uuid
+  outletId              String        @db.Uuid
+  orderId               String        @db.Uuid
+  provider              String        @default("MANUAL")
+  providerTransactionId String?
+  idempotencyKey        String?
+  method                PaymentMethod
+  amountIdr             BigInt
+  status                PaymentStatus @default(UNPAID)
+  paidAt                DateTime?     @db.Timestamptz(6)
+  metadata              Json?
+  createdAt             DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @db.Timestamptz(6)
+  outlet                Outlet        @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, status])
+  @@index([provider, providerTransactionId])
+  @@index([idempotencyKey])
+}
+
+model WebhookEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  provider    String
+  eventId     String
+  payloadHash String
+  status      String    @default("RECEIVED")
+  error       String?
+  receivedAt  DateTime  @default(now()) @db.Timestamptz(6)
+  processedAt DateTime? @db.Timestamptz(6)
+
+  @@unique([provider, eventId])
+  @@index([status, receivedAt])
+}
+
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  aggregateType String
+  aggregateId   String       @db.Uuid
+  eventType     String
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  availableAt   DateTime     @default(now()) @db.Timestamptz(6)
+  publishedAt   DateTime?    @db.Timestamptz(6)
+  lastError     String?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  outletId   String?  @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  requestId  String?
+  ipAddress  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([outletId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model ChatRoom {
+  id            String        @id @default(uuid()) @db.Uuid
+  outletId      String        @db.Uuid
+  customerId    String?       @db.Uuid
+  sellerId      String?       @db.Uuid
+  orderId       String?       @db.Uuid
+  lastMessageAt DateTime?     @db.Timestamptz(6)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  outlet        Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  customer      User?         @relation("CustomerRooms", fields: [customerId], references: [id], onDelete: SetNull)
+  seller        User?         @relation("SellerRooms", fields: [sellerId], references: [id], onDelete: SetNull)
+  messages      ChatMessage[]
+
+  @@index([outletId, lastMessageAt])
+  @@index([customerId])
+  @@index([sellerId])
+}
+
+model ChatMessage {
+  id            String         @id @default(uuid()) @db.Uuid
+  roomId        String         @db.Uuid
+  senderId      String?        @db.Uuid
+  senderType    ChatSenderType
+  message       String
+  attachmentUrl String?
+  isRead        Boolean        @default(false)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+  room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender        User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([roomId, createdAt])
+}
+
+model ChartOfAccount {
+  id        String        @id @default(uuid()) @db.Uuid
+  code      String        @unique
+  name      String
+  type      AccountType
+  category  String?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now()) @db.Timestamptz(6)
+  lines     JournalLine[]
+}
+
+model JournalEntry {
+  id              String        @id @default(uuid()) @db.Uuid
+  entryNumber     String        @unique
+  entryDate       DateTime      @db.Date
+  description     String
+  referenceId     String?
+  referenceType   String?
+  status          JournalStatus @default(POSTED)
+  reversedEntryId String?       @unique @db.Uuid
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  reversedEntry   JournalEntry? @relation("JournalReversal", fields: [reversedEntryId], references: [id], onDelete: Restrict)
+  originalEntry   JournalEntry? @relation("JournalReversal")
+  lines           JournalLine[]
+
+  @@unique([referenceType, referenceId])
+  @@index([entryDate, status])
+  @@index([referenceId, referenceType])
+}
+
+model JournalLine {
+  id             String         @id @default(uuid()) @db.Uuid
+  journalEntryId String         @db.Uuid
+  accountId      String         @db.Uuid
+  accountCode    String
+  debitIdr       BigInt         @default(0)
+  creditIdr      BigInt         @default(0)
+  journalEntry   JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+}

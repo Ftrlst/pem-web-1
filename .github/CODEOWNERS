@@ -1,0 +1,7 @@
+# Replace OWNER/team handles before enabling required reviews.
+* @Ftrlst
+/apps/api/src/modules/auth/ @Ftrlst
+/apps/api/src/modules/payments/ @Ftrlst
+/apps/api/prisma/ @Ftrlst
+/infra/ @Ftrlst
+/.github/ @Ftrlst

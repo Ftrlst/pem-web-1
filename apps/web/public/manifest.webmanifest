@@ -1,0 +1,13 @@
+{
+  "name": "Kletak-Kletik Snack",
+  "short_name": "Kletak-Kletik",
+  "description": "Camilan tradisional untuk hari yang lebih manis.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf1",
+  "theme_color": "#f5b544",
+  "lang": "id-ID",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

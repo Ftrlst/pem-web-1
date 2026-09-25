@@ -1,0 +1,37 @@
+name: Bug report
+description: Melaporkan bug yang dapat direproduksi
+title: '[BUG] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: '{{!-- Jangan sertakan password, token, atau data pelanggan. -->'
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: local / staging / production
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Langkah reproduksi
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Hasil yang diharapkan
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Hasil aktual
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: X-Request-Id (jika ada)
