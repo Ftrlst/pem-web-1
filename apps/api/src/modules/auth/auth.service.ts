@@ -82,20 +82,31 @@ export class AuthService {
 
     const nextRawToken = randomToken();
     const expiresAt = new Date(Date.now() + this.refreshTtlDays * 24 * 60 * 60 * 1000);
-    await this.prisma.$transaction([
-      this.prisma.refreshToken.update({
-        where: { id: stored.id },
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.refreshToken.updateMany({
+        where: {
+          id: stored.id,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
         data: { revokedAt: new Date() },
-      }),
-      this.prisma.refreshToken.create({
+      });
+      if (claimed.count !== 1) {
+        await tx.refreshToken.updateMany({
+          where: { familyId: stored.familyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new UnauthorizedException('Refresh token sudah digunakan');
+      }
+      await tx.refreshToken.create({
         data: {
           userId: stored.userId,
           tokenHash: sha256(nextRawToken),
           familyId: stored.familyId,
           expiresAt,
         },
-      }),
-    ]);
+      });
+    });
 
     return {
       accessToken: await this.createAccessToken(stored.user),
@@ -107,8 +118,13 @@ export class AuthService {
 
   async logout(rawToken?: string) {
     if (!rawToken) return;
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: sha256(rawToken) },
+      select: { familyId: true },
+    });
+    if (!stored) return;
     await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: sha256(rawToken), revokedAt: null },
+      where: { familyId: stored.familyId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
   }

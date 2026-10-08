@@ -9,7 +9,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 FROM dependencies AS build
 WORKDIR /app
 COPY . .
-RUN pnpm db:generate && pnpm --filter @kletak/api build
+RUN pnpm --filter @kletak/contracts build && pnpm db:generate && pnpm --filter @kletak/api build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

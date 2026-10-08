@@ -36,6 +36,12 @@ Docker Compose (butuh Docker Desktop/Engine):
 docker compose -f infra/docker-compose.yml --env-file .env up --build
 ```
 
+Compose menyediakan tiga entrypoint:
+
+- Web langsung: `http://localhost:3000`
+- API langsung: `http://localhost:4000/api/v1`
+- Gateway Nginx: `http://localhost:8080` (rekomendasi untuk pengujian same-origin)
+
 ## Workspace commands
 
 ```bash
@@ -43,6 +49,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm format:check
+# Memerlukan PostgreSQL test database (TEST_DATABASE_URL)
+TEST_DATABASE_URL=postgresql://... pnpm test:integration
 ```
 
 ## Environment
@@ -52,7 +60,7 @@ Salin `.env.example` dan isi nilai lokal. Jangan pernah commit `.env` atau krede
 ## Release policy
 
 - `main` harus protected dan wajib melalui CI + review.
-- Migrationdatabase harus backward-compatible dengan versi aplikasi sebelumnya.
+- Migration database harus backward-compatible dengan versi aplikasi sebelumnya.
 - Payment/auth/migration wajib review owner atau tech lead.
 - Production deploy dilakukan manual dari workflow setelah staging smoke test.
 - Setiap release memiliki tag SemVer dan changelog.

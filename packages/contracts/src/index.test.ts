@@ -11,6 +11,8 @@ describe('order contract', () => {
   it('rejects invalid order transitions', () => {
     expect(canTransitionOrder('PENDING', 'COMPLETED')).toBe(false);
     expect(canTransitionOrder('COMPLETED', 'CANCELLED')).toBe(false);
+    expect(canTransitionOrder('CONFIRMED', 'CANCELLED')).toBe(false);
+    expect(canTransitionOrder('PACKED', 'CANCELLED')).toBe(false);
   });
 
   it('requires an address for delivery', () => {

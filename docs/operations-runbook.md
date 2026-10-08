@@ -9,8 +9,8 @@ Readiness harus gagal jika PostgreSQL tidak dapat dijangkau. Ingress tidak boleh
 
 ## Database
 
-1. Backup harian terenkripsi danPoint-in-time recovery.
-2. Simpan minimal 7 hari daily backup;Sesuaikan dengan RPO.
+1. Backup harian terenkripsi dan point-in-time recovery.
+2. Simpan minimal 7 hari daily backup; sesuaikan dengan RPO.
 3. Jalankan restore drill ke database staging setiap bulan.
 4. Migration hanya melalui reviewed migration file dan `prisma migrate deploy`.
 5. Jangan melakukan destructive migration pada jam sibuk tanpa rollback plan.

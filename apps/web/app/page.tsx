@@ -11,7 +11,7 @@ export default function HomePage() {
             <h1>
               Snack kecil,
               <br />
-              <em>kebucinean</em> besar.
+              <em>kebahagiaan</em> besar.
             </h1>
             <p>
               Kletak-Kletik Snack menyajikan camilan rumahan yang dibuat dengan bahan pilihan, rasa
@@ -53,13 +53,13 @@ export default function HomePage() {
             <span className="trust-icon">📦</span>
             <div>
               <strong>Kemasan rapi</strong>
-              <span>Selalu baru arrived</span>
+              <span>Selalu segar sampai</span>
             </div>
           </div>
           <div className="trust-item">
             <span className="trust-icon">🛵</span>
             <div>
-              <strong>Pengirimanaman</strong>
+              <strong>Pengiriman aman</strong>
               <span>Ambil sendiri atau diantar</span>
             </div>
           </div>
@@ -73,9 +73,9 @@ export default function HomePage() {
           </div>
           <div className="story-copy">
             <span className="eyebrow">DARI DAPUR KECIL, DENGAN BESAR HATI</span>
-            <h2>Setiap mouthful punya cerita.</h2>
+            <h2>Setiap gigitan punya cerita.</h2>
             <p>
-              Kami membiarkan rasa sederhana tetapFRESH. Dibuat dalam batch kecil, dikemas dengan
+              Kami membiarkan rasa sederhana tetap segar. Dibuat dalam batch kecil, dikemas dengan
               perhatian, dan dikirim supaya tiba dalam kondisi paling enak.
             </p>
             <div className="story-list">

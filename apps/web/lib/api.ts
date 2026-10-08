@@ -116,6 +116,10 @@ export function register(name: string, email: string, phone: string | undefined,
   });
 }
 
+export function logout() {
+  return apiFetch<void>('/auth/logout', { method: 'POST' }, false);
+}
+
 export function getProfile() {
   return apiFetch<AuthResponse['user']>('/users/me');
 }

@@ -6,11 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { canTransitionOrder, OrderStatus } from '@kletak/contracts';
+import { canTransitionOrder, OrderStatus, UserRole } from '@kletak/contracts';
 import {
   FulfillmentMethod as PrismaFulfillmentMethod,
   OrderStatus as PrismaOrderStatus,
   PaymentMethod as PrismaPaymentMethod,
+  PaymentStatus as PrismaPaymentStatus,
   Prisma,
   ReservationStatus,
 } from '@prisma/client';
@@ -18,6 +19,7 @@ import { randomToken, sha256 } from '../../common/security/token.util';
 import { bigintToNumber } from '../../common/utils/serialize';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withSerializableRetry } from '../../common/database/transaction.util';
 import { assertFulfillmentStatus, assertOrderTransition } from './order-state';
 import {
   CreateOrderDto,
@@ -84,117 +86,114 @@ export class OrdersService {
     }
 
     const trackingToken = randomToken(32);
-    const order = await this.prisma.$transaction(
-      async (tx) => {
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds }, outletId, isActive: true },
-        });
-        if (products.length !== productIds.length) {
-          throw new NotFoundException('Salah satu produk tidak tersedia');
+    const order = await withSerializableRetry(this.prisma, async (tx) => {
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds }, outletId, isActive: true },
+      });
+      if (products.length !== productIds.length) {
+        throw new NotFoundException('Salah satu produk tidak tersedia');
+      }
+      const productById = new Map(products.map((product) => [product.id, product]));
+      let subtotal = 0n;
+      for (const [productId, quantity] of groupedItems) {
+        const product = productById.get(productId);
+        if (!product || product.stock - product.reservedStock < quantity) {
+          throw new ConflictException(`Stok ${product?.name ?? 'produk'} tidak mencukupi`);
         }
-        const productById = new Map(products.map((product) => [product.id, product]));
-        let subtotal = 0n;
-        for (const [productId, quantity] of groupedItems) {
-          const product = productById.get(productId);
-          if (!product || product.stock - product.reservedStock < quantity) {
-            throw new ConflictException(`Stok ${product?.name ?? 'produk'} tidak mencukupi`);
-          }
-          subtotal += product.priceIdr * BigInt(quantity);
-        }
-        const shipping =
-          input.fulfillmentMethod === FulfillmentMethodDto.DELIVERY ? DELIVERY_FEE_IDR : 0n;
-        const orderNumber = this.createOrderNumber();
-        const created = await tx.order.create({
-          data: {
-            outletId,
-            userId: requester?.id,
-            orderNumber,
-            idempotencyKey: idempotencyKey || null,
-            status: PrismaOrderStatus.PENDING,
-            paymentMethod: input.paymentMethod as PrismaPaymentMethod,
-            fulfillmentMethod: input.fulfillmentMethod as PrismaFulfillmentMethod,
-            customerName,
-            customerPhone: requester ? user?.phone : input.customerPhone?.trim() || null,
-            deliveryAddress: input.deliveryAddress?.trim() || null,
-            pickupLocation: input.pickupLocation?.trim() || null,
-            scheduledDate,
-            subtotalIdr: subtotal,
-            shippingIdr: shipping,
-            totalIdr: subtotal + shipping,
-            customerNote: input.customerNote?.trim() || null,
-            trackingTokenHash: sha256(trackingToken),
+        subtotal += product.priceIdr * BigInt(quantity);
+      }
+      const shipping =
+        input.fulfillmentMethod === FulfillmentMethodDto.DELIVERY ? DELIVERY_FEE_IDR : 0n;
+      const orderNumber = this.createOrderNumber();
+      const created = await tx.order.create({
+        data: {
+          outletId,
+          userId: requester?.id,
+          orderNumber,
+          idempotencyKey: idempotencyKey || null,
+          status: PrismaOrderStatus.PENDING,
+          paymentMethod: input.paymentMethod as PrismaPaymentMethod,
+          fulfillmentMethod: input.fulfillmentMethod as PrismaFulfillmentMethod,
+          customerName,
+          customerPhone: requester ? user?.phone : input.customerPhone?.trim() || null,
+          deliveryAddress: input.deliveryAddress?.trim() || null,
+          pickupLocation: input.pickupLocation?.trim() || null,
+          scheduledDate,
+          subtotalIdr: subtotal,
+          shippingIdr: shipping,
+          totalIdr: subtotal + shipping,
+          customerNote: input.customerNote?.trim() || null,
+          trackingTokenHash: sha256(trackingToken),
+        },
+        include: { items: true, payments: true },
+      });
+
+      for (const [productId, quantity] of groupedItems) {
+        const product = productById.get(productId)!;
+        const updated = await tx.product.updateMany({
+          where: {
+            id: productId,
+            stock: { gte: product.reservedStock + quantity },
           },
-          include: { items: true, payments: true },
+          data: { reservedStock: { increment: quantity } },
         });
-
-        for (const [productId, quantity] of groupedItems) {
-          const product = productById.get(productId)!;
-          const updated = await tx.product.updateMany({
-            where: {
-              id: productId,
-              stock: { gte: product.reservedStock + quantity },
-            },
-            data: { reservedStock: { increment: quantity } },
-          });
-          if (updated.count !== 1) {
-            throw new ConflictException(`Stok ${product.name} berubah, silakan ulangi checkout`);
-          }
-          await tx.orderItem.create({
-            data: {
-              orderId: created.id,
-              productId,
-              productName: product.name,
-              quantity,
-              unitPriceIdr: product.priceIdr,
-              subtotalIdr: product.priceIdr * BigInt(quantity),
-            },
-          });
-          await tx.inventoryReservation.create({
-            data: {
-              orderId: created.id,
-              productId,
-              quantity,
-              expiresAt: new Date(Date.now() + RESERVATION_TTL_MINUTES * 60 * 1000),
-            },
-          });
+        if (updated.count !== 1) {
+          throw new ConflictException(`Stok ${product.name} berubah, silakan ulangi checkout`);
         }
-
-        await tx.orderStatusHistory.create({
+        await tx.orderItem.create({
           data: {
             orderId: created.id,
-            fromStatus: null,
-            toStatus: PrismaOrderStatus.PENDING,
-            changedById: requester?.id,
-            note: 'Order dibuat',
+            productId,
+            productName: product.name,
+            quantity,
+            unitPriceIdr: product.priceIdr,
+            subtotalIdr: product.priceIdr * BigInt(quantity),
           },
         });
-        await tx.auditLog.create({
+        await tx.inventoryReservation.create({
           data: {
-            outletId,
-            actorId: requester?.id,
-            action: 'ORDER_CREATED',
-            entityType: 'Order',
-            entityId: created.id,
-            newValue: { orderNumber, totalIdr: (subtotal + shipping).toString() },
-            requestId: requestId || null,
+            orderId: created.id,
+            productId,
+            quantity,
+            expiresAt: new Date(Date.now() + RESERVATION_TTL_MINUTES * 60 * 1000),
           },
         });
-        await tx.outboxEvent.create({
-          data: {
-            aggregateType: 'Order',
-            aggregateId: created.id,
-            eventType: 'OrderCreated',
-            payload: {
-              orderId: created.id,
-              orderNumber,
-              totalIdr: (subtotal + shipping).toString(),
-            },
+      }
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: created.id,
+          fromStatus: null,
+          toStatus: PrismaOrderStatus.PENDING,
+          changedById: requester?.id,
+          note: 'Order dibuat',
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          outletId,
+          actorId: requester?.id,
+          action: 'ORDER_CREATED',
+          entityType: 'Order',
+          entityId: created.id,
+          newValue: { orderNumber, totalIdr: (subtotal + shipping).toString() },
+          requestId: requestId || null,
+        },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'Order',
+          aggregateId: created.id,
+          eventType: 'OrderCreated',
+          payload: {
+            orderId: created.id,
+            orderNumber,
+            totalIdr: (subtotal + shipping).toString(),
           },
-        });
-        return created;
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 },
-    );
+        },
+      });
+      return created;
+    });
 
     return this.serialize(order, requester ? undefined : trackingToken);
   }
@@ -245,43 +244,78 @@ export class OrdersService {
     requester: AuthenticatedUser,
     requestId?: string,
   ) {
-    const order = await this.prisma.$transaction(
-      async (tx) => {
-        const current = await tx.order.findUnique({
-          where: { id },
-          include: { reservations: true },
-        });
-        if (!current) throw new NotFoundException('Pesanan tidak ditemukan');
-        this.assertStaffCanAccess(current, requester);
-        return this.transitionInTx(
-          tx,
-          current,
-          input.status as OrderStatus,
-          requester,
-          input.note,
-          requestId,
-        );
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+    if (input.status === OrderStatusDto.CONFIRMED) {
+      throw new ConflictException(
+        'Status CONFIRMED hanya dapat diproses melalui payment verification',
+      );
+    }
+
+    const order = await withSerializableRetry(this.prisma, async (tx) => {
+      const current = await tx.order.findUnique({
+        where: { id },
+        include: { reservations: true },
+      });
+      if (!current) throw new NotFoundException('Pesanan tidak ditemukan');
+      this.assertStaffCanAccess(current, requester);
+      return this.transitionInTx(
+        tx,
+        current,
+        input.status as OrderStatus,
+        requester,
+        input.note,
+        requestId,
+      );
+    });
     return this.getById(order.id, requester);
   }
 
   async cancel(id: string, requester: AuthenticatedUser, requestId?: string) {
-    return this.updateStatus(
-      id,
-      { status: OrderStatusDto.CANCELLED, note: 'Dibatalkan oleh pengguna' },
-      requester,
-      requestId,
-    );
+    const cancelled = await withSerializableRetry(this.prisma, async (tx) => {
+      const current = await tx.order.findUnique({
+        where: { id },
+        include: { reservations: true },
+      });
+      if (!current) throw new NotFoundException('Pesanan tidak ditemukan');
+
+      if (requester.role === UserRole.CUSTOMER) {
+        if (current.userId !== requester.id) {
+          throw new ForbiddenException('Pesanan ini bukan milik Anda');
+        }
+        if (current.status !== PrismaOrderStatus.PENDING) {
+          throw new ConflictException('Pesanan hanya dapat dibatalkan sebelum diproses');
+        }
+      } else {
+        this.assertStaffCanAccess(current, requester);
+      }
+
+      const paidPayment = await tx.payment.findFirst({
+        where: { orderId: id, status: PrismaPaymentStatus.PAID },
+        select: { id: true },
+      });
+      if (paidPayment) {
+        throw new ConflictException('Pesanan lunas tidak dapat dibatalkan tanpa refund');
+      }
+
+      return this.transitionInTx(
+        tx,
+        current,
+        OrderStatusDto.CANCELLED,
+        requester,
+        'Dibatalkan oleh pengguna',
+        requestId,
+      );
+    });
+    return this.getById(cancelled.id, requester);
   }
 
   async confirmPayment(
     paymentId: string,
     actor?: AuthenticatedUser,
     requestId?: string,
+    provider?: { name: string; transactionId?: string },
   ): Promise<OrderWithDetails> {
-    return this.prisma.$transaction(
+    return withSerializableRetry(
+      this.prisma,
       async (tx) => {
         const payment = await tx.payment.findUnique({
           where: { id: paymentId },
@@ -289,18 +323,35 @@ export class OrdersService {
         });
         if (!payment) throw new NotFoundException('Pembayaran tidak ditemukan');
         if (actor) this.assertStaffCanAccess(payment.order, actor);
-        if (payment.status === 'PAID') {
+        if (payment.status === PrismaPaymentStatus.PAID) {
           return tx.order.findUniqueOrThrow({
             where: { id: payment.orderId },
             include: { items: true, payments: true },
           });
+        }
+        if (
+          payment.status !== PrismaPaymentStatus.UNPAID &&
+          payment.status !== PrismaPaymentStatus.PENDING
+        ) {
+          throw new ConflictException('Status pembayaran tidak dapat diverifikasi');
+        }
+        if (payment.amountIdr !== payment.order.totalIdr) {
+          throw new ConflictException('Nominal pembayaran tidak sesuai dengan total pesanan');
+        }
+        if (payment.method !== payment.order.paymentMethod) {
+          throw new ConflictException('Metode pembayaran tidak sesuai dengan pesanan');
         }
         if (payment.order.status !== PrismaOrderStatus.PENDING) {
           throw new ConflictException('Pesanan tidak dapat dikonfirmasi pada status saat ini');
         }
         await tx.payment.update({
           where: { id: payment.id },
-          data: { status: 'PAID', paidAt: new Date(), provider: payment.provider || 'MANUAL' },
+          data: {
+            status: PrismaPaymentStatus.PAID,
+            paidAt: new Date(),
+            provider: provider?.name || payment.provider || 'MANUAL',
+            providerTransactionId: provider?.transactionId || payment.providerTransactionId,
+          },
         });
         return this.transitionInTx(
           tx,
@@ -311,7 +362,7 @@ export class OrdersService {
           requestId,
         );
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 },
+      { timeoutMs: 15_000 },
     );
   }
 
@@ -329,40 +380,63 @@ export class OrdersService {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async expireReservations() {
+    const now = new Date();
     const expired = await this.prisma.inventoryReservation.findMany({
-      where: { status: ReservationStatus.ACTIVE, expiresAt: { lt: new Date() } },
-      include: { order: true },
+      where: { status: ReservationStatus.ACTIVE, expiresAt: { lt: now } },
       take: 100,
     });
+
     for (const reservation of expired) {
-      await this.prisma.$transaction(async (tx) => {
-        const current = await tx.inventoryReservation.findUnique({ where: { id: reservation.id } });
-        if (!current || current.status !== ReservationStatus.ACTIVE) return;
-        await tx.inventoryReservation.update({
-          where: { id: current.id },
-          data: { status: ReservationStatus.EXPIRED, releasedAt: new Date() },
+      await withSerializableRetry(this.prisma, async (tx) => {
+        const claimed = await tx.inventoryReservation.updateMany({
+          where: {
+            id: reservation.id,
+            status: ReservationStatus.ACTIVE,
+            expiresAt: { lt: now },
+          },
+          data: { status: ReservationStatus.EXPIRED, releasedAt: now },
         });
-        await tx.product.update({
-          where: { id: current.productId },
-          data: { reservedStock: { decrement: current.quantity } },
+        if (claimed.count !== 1) return;
+
+        const released = await tx.product.updateMany({
+          where: {
+            id: reservation.productId,
+            reservedStock: { gte: reservation.quantity },
+          },
+          data: { reservedStock: { decrement: reservation.quantity } },
         });
-        if (current.orderId) {
-          const order = await tx.order.findUnique({ where: { id: current.orderId } });
-          if (order?.status === PrismaOrderStatus.PENDING) {
-            await tx.order.update({
-              where: { id: order.id },
-              data: { status: PrismaOrderStatus.EXPIRED },
-            });
-            await tx.orderStatusHistory.create({
-              data: {
-                orderId: order.id,
-                fromStatus: order.status,
-                toStatus: PrismaOrderStatus.EXPIRED,
-                note: 'Reservasi kedaluwarsa',
-              },
-            });
-          }
+        if (released.count !== 1) {
+          throw new ConflictException('Reservasi tidak dapat dilepas karena stok berubah');
         }
+
+        const order = await tx.order.findUnique({ where: { id: reservation.orderId } });
+        if (!order || order.status !== PrismaOrderStatus.PENDING) return;
+
+        const remaining = await tx.inventoryReservation.count({
+          where: { orderId: order.id, status: ReservationStatus.ACTIVE },
+        });
+        if (remaining !== 0) return;
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: PrismaOrderStatus.EXPIRED },
+        });
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            fromStatus: order.status,
+            toStatus: PrismaOrderStatus.EXPIRED,
+            note: 'Seluruh reservasi kedaluwarsa',
+          },
+        });
+        await tx.outboxEvent.create({
+          data: {
+            aggregateType: 'Order',
+            aggregateId: order.id,
+            eventType: 'OrderStatusChanged',
+            payload: { orderId: order.id, fromStatus: order.status, toStatus: 'EXPIRED' },
+          },
+        });
       });
     }
   }
@@ -401,6 +475,13 @@ export class OrdersService {
       await this.consumeReservations(tx, order);
     }
     if (nextStatus === 'CANCELLED' || nextStatus === 'EXPIRED') {
+      const paidPayment = await tx.payment.findFirst({
+        where: { orderId: order.id, status: PrismaPaymentStatus.PAID },
+        select: { id: true },
+      });
+      if (paidPayment) {
+        throw new ConflictException('Pesanan lunas tidak dapat dibatalkan tanpa refund');
+      }
       await this.releaseReservations(tx, order);
     }
 
@@ -525,8 +606,11 @@ export class OrdersService {
   }
 
   private assertStaffCanAccess(order: { outletId: string }, requester: AuthenticatedUser) {
-    if (requester.role !== 'ADMIN' && requester.outletId !== order.outletId) {
-      throw new ForbiddenException('Pesanan berada di luar outlet Anda');
+    if (
+      requester.role === UserRole.CUSTOMER ||
+      (requester.role !== UserRole.ADMIN && requester.outletId !== order.outletId)
+    ) {
+      throw new ForbiddenException('Akses staff ke pesanan ini tidak diizinkan');
     }
   }
 

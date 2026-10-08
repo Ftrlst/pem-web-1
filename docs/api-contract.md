@@ -60,4 +60,4 @@ All mutating endpoints return a request ID. Error shape:
 
 `PENDING -> CONFIRMED -> PREPARING -> PACKED -> READY_DELIVERY|READY_PICKUP -> COMPLETED`
 
-`PENDING/CONFIRMED/PREPARING/PACKED/READY_* -> CANCELLED` is constrained by the application policy. `EXPIRED` is scheduler-driven. Payment status is independent and must be verified server-side.
+`PENDING -> CANCELLED` only. Order yang sudah dibayar tidak dapat dibatalkan tanpa refund flow. `EXPIRED` is scheduler-driven. Payment status is independent and must be verified server-side.

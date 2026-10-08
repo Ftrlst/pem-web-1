@@ -10,6 +10,7 @@ describe('order state machine', () => {
 
   it('rejects invalid transitions', () => {
     expect(() => assertOrderTransition('PENDING', 'COMPLETED')).toThrow();
+    expect(() => assertOrderTransition('CONFIRMED', 'CANCELLED')).toThrow();
   });
 
   it('enforces the fulfillment method', () => {

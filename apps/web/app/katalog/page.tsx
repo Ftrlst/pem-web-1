@@ -11,8 +11,7 @@ export default function CatalogPage() {
           <span className="eyebrow">THE GOOD STUFF</span>
           <h1>Katalog camilan</h1>
           <p>
-            Pilih bite favoritmu. Pesanan bisa ambil sendiri, diantar, atauLANDING dengan pembayaran
-            yang aman.
+            Pilih bite favoritmu. Pesanan bisa diambil sendiri, diantar, atau dipesan lebih dulu dengan pembayaran yang aman.
           </p>
         </div>
       </div>

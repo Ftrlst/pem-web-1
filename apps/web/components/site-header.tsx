@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { cartCount, readCart } from '@/lib/cart';
-import { setAccessToken } from '@/lib/api';
+import { logout as logoutSession, setAccessToken } from '@/lib/api';
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -29,7 +29,12 @@ export function SiteHeader() {
     };
   }, [pathname]);
 
-  function logout() {
+  async function logout() {
+    try {
+      await logoutSession();
+    } catch {
+      // Clear the client state even if the session already expired.
+    }
     setAccessToken(null);
     localStorage.removeItem('kletak_user');
     setUser(null);

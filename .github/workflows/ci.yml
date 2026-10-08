@@ -13,10 +13,31 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DATABASE_URL: postgresql://kletak:kletak@localhost:5432/kletak_test?schema=public
+  TEST_DATABASE_URL: postgresql://kletak:kletak@localhost:5432/kletak_test?schema=public
+  JWT_ACCESS_SECRET: ci-only-access-secret-please-change-32
+  JWT_REFRESH_SECRET: ci-only-refresh-secret-please-change-32
+  NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kletak_test
+          POSTGRES_USER: kletak
+          POSTGRES_PASSWORD: kletak
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kletak -d kletak_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,10 +60,14 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
         run: npx prisma validate --schema apps/api/prisma/schema.prisma
+      - name: Apply database migrations
+        run: pnpm db:migrate:deploy
       - name: Typecheck
         run: pnpm typecheck
       - name: Unit tests
         run: pnpm test
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
       - name: Build
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci

@@ -5,7 +5,7 @@ import { ServiceWorkerRegistration } from '@/components/service-worker-registrat
 
 export const metadata: Metadata = {
   title: {
-    default: 'Kletak-Kletik Snack | Camilan rumblewtawa',
+    default: 'Kletak-Kletik Snack | Camilan rumahan yang ceria',
     template: '%s | Kletak-Kletik Snack',
   },
   description: 'Camilan tradisional Indonesia yang dibuat segar untuk dibagikan.',

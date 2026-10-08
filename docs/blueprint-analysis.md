@@ -6,7 +6,7 @@
 
 ## 1. Ringkasan
 
-BlueprintIni mendefinisikan aplikasi PWA untuk operasional UMKM snack dengan domain utama:
+Blueprint ini mendefinisikan aplikasi PWA untuk operasional UMKM snack dengan domain utama:
 
 - katalog dan pemesanan pelanggan;
 - stok dan movements;
@@ -89,10 +89,10 @@ Arah **modular monolith + event-driven** sudah tepat untuk MVP dan lebih mudah d
 
 1. Backend mengambil harga dari database; harga dari client tidak dipercaya.
 2. Backend memvalidasi stok tersedia (`stock - reserved_stock >= quantity`).
-3. Order dibuat pada status `PENDING` danXJumlah stok dicadangkan.
+3. Order dibuat pada status `PENDING` dan jumlah stok dicadangkan.
 4. Reservation memiliki expiry dan dilepas saat order expired/cancelled.
 5. Event `OrderCreated` ditulis ke outbox dalam transaksi yang sama.
-6. Payment confirmation mengunci order, memvalidasi transisi, dannookstrak stok secara atomik.
+6. Payment confirmation mengunci order, memvalidasi transisi, dan mengekstrak stok secara atomik.
 7. Setiap perubahan status, pembayaran, dan stok menulis audit log.
 
 ### Payment
@@ -156,7 +156,7 @@ Aplikasi belum boleh disebut production-ready hanya karena bisa `npm run dev`. M
 - [ ] concurrency test membuktikan tidak terjadi oversell;
 - [ ] webhook duplicate/out-of-order diuji;
 - [ ] backup terenkripsi dan restore drill terdokumentasi;
-- [ ] PWA tidak chemistsensitive data di cache offline;
+- [ ] PWA tidak menyimpan data sensitif di cache offline;
 - [ ] Sentry/error tracking dan alert expiry reservation aktif;
 - [ ] backup target RPO/RTO disetujui owner;
 - [ ] staging smoke test dan rollback release terdokumentasi.

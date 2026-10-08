@@ -4,13 +4,20 @@ import * as argon2 from 'argon2';
 const prisma = new PrismaClient();
 
 async function main() {
+  const seedPassword =
+    process.env.SEED_DEMO_PASSWORD ||
+    (process.env.NODE_ENV === 'production' ? '' : 'KletakKletikDev123!');
+  if (!seedPassword) {
+    throw new Error('SEED_DEMO_PASSWORD wajib diisi saat seeding production');
+  }
+
   const outlet = await prisma.outlet.upsert({
     where: { slug: 'kletak-pusat' },
     update: {},
     create: { name: 'Kletak-Kletik Snack Pusat', slug: 'kletak-pusat' },
   });
 
-  const passwordHash = await argon2.hash('KletakKletikDev123!', { type: argon2.argon2id });
+  const passwordHash = await argon2.hash(seedPassword, { type: argon2.argon2id });
   const users = [
     { name: 'Owner Kletak-Kletik', email: 'owner@kletakkletik.test', role: UserRole.OWNER },
     { name: 'Seller Kletak-Kletik', email: 'seller@kletakkletik.test', role: UserRole.SELLER },
@@ -33,7 +40,7 @@ async function main() {
       priceIdr: 12000n,
       stock: 80,
       minStock: 10,
-      description: 'Keripik pisang renyah dengan spesifikasiEncryption yang aman.',
+      description: 'Keripik pisang renyah dengan bumbu yang pas.',
     },
     {
       name: 'Peyek Kacang Original',

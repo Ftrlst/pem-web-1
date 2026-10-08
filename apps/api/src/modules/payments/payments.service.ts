@@ -37,6 +37,9 @@ export class PaymentsService {
     this.assertCanAccess(order, user);
     if (order.status !== 'PENDING')
       throw new ConflictException('Pesanan tidak dapat dibayar pada status ini');
+    if (input.method !== order.paymentMethod) {
+      throw new ConflictException('Metode pembayaran tidak sesuai dengan pesanan');
+    }
 
     if (idempotencyKey) {
       const existing = await this.prisma.payment.findFirst({
@@ -51,31 +54,38 @@ export class PaymentsService {
       return this.serialize(active);
     }
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        outletId: order.outletId,
-        orderId: order.id,
-        provider: 'MANUAL',
-        idempotencyKey: idempotencyKey || null,
-        method: input.method as PaymentMethod,
-        amountIdr: order.totalIdr,
-        status: input.method === 'COD' ? PaymentStatus.PENDING : PaymentStatus.UNPAID,
-        metadata: {
-          externalReference: input.externalReference || null,
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.payment.create({
+        data: {
+          outletId: order.outletId,
+          orderId: order.id,
+          provider: 'MANUAL',
+          idempotencyKey: idempotencyKey || null,
+          method: input.method as PaymentMethod,
+          amountIdr: order.totalIdr,
+          status: input.method === 'COD' ? PaymentStatus.PENDING : PaymentStatus.UNPAID,
+          metadata: {
+            externalReference: input.externalReference || null,
+            requestId: requestId || null,
+          },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          outletId: order.outletId,
+          actorId: user.id,
+          action: 'PAYMENT_CREATED',
+          entityType: 'Payment',
+          entityId: created.id,
+          newValue: {
+            orderId: order.id,
+            amountIdr: order.totalIdr.toString(),
+            method: input.method,
+          },
           requestId: requestId || null,
         },
-      },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        outletId: order.outletId,
-        actorId: user.id,
-        action: 'PAYMENT_CREATED',
-        entityType: 'Payment',
-        entityId: payment.id,
-        newValue: { orderId: order.id, amountIdr: order.totalIdr.toString(), method: input.method },
-        requestId: requestId || null,
-      },
+      });
+      return created;
     });
     return this.serialize(payment);
   }
@@ -145,9 +155,19 @@ export class PaymentsService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        return { received: true, duplicate: true };
+        const existing = await this.prisma.webhookEvent.findUnique({
+          where: { provider_eventId: { provider: normalizedProvider, eventId } },
+        });
+        if (existing?.status === 'PROCESSED') return { received: true, duplicate: true };
+        if (existing) {
+          await this.prisma.webhookEvent.update({
+            where: { id: existing.id },
+            data: { status: 'RECEIVED', error: null, processedAt: null },
+          });
+        }
+      } else {
+        throw error;
       }
-      throw error;
     }
 
     const transactionId = String(body.transaction_id || body.id || body.payment_id || '');
@@ -170,46 +190,53 @@ export class PaymentsService {
       return { received: true, matched: false };
     }
 
-    const expectedAmount = payment.amountIdr;
-    const receivedAmount = body.gross_amount ?? body.amount ?? body.paid_amount;
-    if (
-      receivedAmount !== undefined &&
-      BigInt(Math.round(Number(receivedAmount))) !== expectedAmount
-    ) {
+    try {
+      const expectedAmount = payment.amountIdr;
+      const receivedAmount = body.gross_amount ?? body.amount ?? body.paid_amount;
+      if (
+        receivedAmount !== undefined &&
+        BigInt(Math.round(Number(receivedAmount))) !== expectedAmount
+      ) {
+        await this.prisma.webhookEvent.update({
+          where: { provider_eventId: { provider: normalizedProvider, eventId } },
+          data: { status: 'AMOUNT_MISMATCH', processedAt: new Date(), error: 'Amount mismatch' },
+        });
+        throw new BadRequestException('Nominal webhook tidak cocok dengan invoice');
+      }
+
+      const status = String(body.status || body.transaction_status || '').toUpperCase();
+      const paid = ['PAID', 'SUCCESS', 'SETTLED', 'CAPTURED'].includes(status);
+      const failed = ['FAILED', 'DENIED', 'CANCELLED', 'EXPIRED', 'VOID'].includes(status);
+      if (paid) {
+        await this.orders.confirmPayment(payment.id, undefined, requestId, {
+          name: normalizedProvider,
+          transactionId: transactionId || payment.providerTransactionId || undefined,
+        });
+      } else if (failed) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            provider: normalizedProvider,
+            providerTransactionId: transactionId || payment.providerTransactionId,
+            status: status === 'EXPIRED' ? PaymentStatus.EXPIRED : PaymentStatus.FAILED,
+          },
+        });
+      }
       await this.prisma.webhookEvent.update({
         where: { provider_eventId: { provider: normalizedProvider, eventId } },
-        data: { status: 'AMOUNT_MISMATCH', processedAt: new Date(), error: 'Amount mismatch' },
+        data: { status: 'PROCESSED', processedAt: new Date() },
       });
-      throw new BadRequestException('Nominal webhook tidak cocok dengan invoice');
-    }
-
-    const status = String(body.status || body.transaction_status || '').toUpperCase();
-    const paid = ['PAID', 'SUCCESS', 'SETTLED', 'CAPTURED'].includes(status);
-    const failed = ['FAILED', 'DENIED', 'CANCELLED', 'EXPIRED', 'VOID'].includes(status);
-    if (paid) {
-      await this.prisma.payment.update({
-        where: { id: payment.id },
+      return { received: true, matched: true, paid };
+    } catch (error) {
+      await this.prisma.webhookEvent.update({
+        where: { provider_eventId: { provider: normalizedProvider, eventId } },
         data: {
-          provider: normalizedProvider,
-          providerTransactionId: transactionId || payment.providerTransactionId,
+          status: 'FAILED',
+          error: error instanceof Error ? error.message.slice(0, 1000) : 'Unknown webhook error',
         },
       });
-      await this.orders.confirmPayment(payment.id, undefined, requestId);
-    } else if (failed) {
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          provider: normalizedProvider,
-          providerTransactionId: transactionId || payment.providerTransactionId,
-          status: status === 'EXPIRED' ? PaymentStatus.EXPIRED : PaymentStatus.FAILED,
-        },
-      });
+      throw error;
     }
-    await this.prisma.webhookEvent.update({
-      where: { provider_eventId: { provider: normalizedProvider, eventId } },
-      data: { status: 'PROCESSED', processedAt: new Date() },
-    });
-    return { received: true, matched: true, paid };
   }
 
   private headerValue(

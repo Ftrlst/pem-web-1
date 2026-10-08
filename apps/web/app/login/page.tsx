@@ -47,7 +47,7 @@ export default function LoginPage() {
             <p>
               {mode === 'login'
                 ? 'Lacak pesanan dan nikmati checkout yang lebih cepat.'
-                : 'Simpan pesananmu dan akses promo_member.'}
+                : 'Simpan pesananmu dan akses promo member.'}
             </p>
           </div>
           <div className="auth-switch">

@@ -106,7 +106,7 @@ export function ProductCatalog() {
       <div className="container">
         <div className="section-heading catalog-heading">
           <div>
-            <span className="eyebrow">CURES &amp; CHOICES</span>
+            <span className="eyebrow">SNACKS &amp; CHOICES</span>
             <h2>Temukan camilan favoritmu</h2>
             <p>Dibuat dari bahan pilihan, dikemas dengan cerita rasa khas Kletak-Kletik.</p>
           </div>

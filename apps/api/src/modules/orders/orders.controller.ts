@@ -57,6 +57,7 @@ export class OrdersController {
   }
 
   @ApiBearerAuth()
+  @Roles(UserRole.CUSTOMER, UserRole.STAFF, UserRole.SELLER, UserRole.OWNER, UserRole.ADMIN)
   @Patch(':id/cancel')
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Req() request: Request) {
     return this.orders.cancel(id, user, request.requestId);

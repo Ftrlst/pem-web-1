@@ -5,7 +5,7 @@
 1. Browser PWA tidak dipercaya: harga, role, total, status, dan stock tidak boleh dipercaya dari client.
 2. API menerima guest checkout; akses tracking membutuhkan token acak yang hanya diberikan sekali.
 3. Payment provider adalah external system; signature dan replay protection wajib.
-4. Redis/BullMQ adalah internal dependency; failure tidak boleh destroying order state.
+4. Redis/BullMQ adalah internal dependency; failure tidak boleh merusak state pesanan.
 5. Browser cache tidak boleh menyimpan token, payment detail, chat, atau admin response.
 
 ## Kontrol utama
@@ -25,5 +25,5 @@
 
 - WhatsApp/FCM delivery is best effort until retry and consent policy are implemented.
 - Offline catalog cache can be stale; UI harus menampilkan last-updated/offline state.
-- Manual payment verification bergantung pada staff yang_train dan kontrol segregation of duties.
+- Manual payment verification bergantung pada staff yang terlatih dan kontrol segregation of duties.
 - Compromise of a staff account dapat merusak data; production wajib MFA untuk OWNER/ADMIN.

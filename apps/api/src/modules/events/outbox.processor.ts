@@ -19,6 +19,15 @@ export class OutboxProcessor {
     if (this.running) return;
     this.running = true;
     try {
+      const now = new Date();
+      await this.prisma.outboxEvent.updateMany({
+        where: { status: OutboxStatus.PROCESSING, availableAt: { lt: now } },
+        data: {
+          status: OutboxStatus.PENDING,
+          availableAt: now,
+          lastError: 'Recovered expired lease',
+        },
+      });
       const events = await this.prisma.outboxEvent.findMany({
         where: { status: OutboxStatus.PENDING, availableAt: { lte: new Date() } },
         orderBy: { createdAt: 'asc' },
@@ -38,7 +47,11 @@ export class OutboxProcessor {
   private async processEvent(id: string) {
     const claimed = await this.prisma.outboxEvent.updateMany({
       where: { id, status: OutboxStatus.PENDING, availableAt: { lte: new Date() } },
-      data: { status: OutboxStatus.PROCESSING, attempts: { increment: 1 } },
+      data: {
+        status: OutboxStatus.PROCESSING,
+        attempts: { increment: 1 },
+        availableAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
     });
     if (claimed.count !== 1) return;
 
@@ -70,7 +83,7 @@ export class OutboxProcessor {
       await this.prisma.outboxEvent.update({
         where: { id },
         data: {
-          status: OutboxStatus.PENDING,
+          status: attempts >= 10 ? OutboxStatus.FAILED : OutboxStatus.PENDING,
           availableAt: new Date(Date.now() + delaySeconds * 1000),
           lastError: message.slice(0, 1000),
         },

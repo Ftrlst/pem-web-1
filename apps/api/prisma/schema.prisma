@@ -289,8 +289,9 @@ model Payment {
   outlet                Outlet        @relation(fields: [outletId], references: [id], onDelete: Restrict)
   order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
+  @@unique([provider, providerTransactionId])
+  @@unique([orderId, idempotencyKey])
   @@index([orderId, status])
-  @@index([provider, providerTransactionId])
   @@index([idempotencyKey])
 }
 

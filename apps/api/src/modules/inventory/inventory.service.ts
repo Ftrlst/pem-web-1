@@ -3,6 +3,7 @@ import { ProductMovementType, Prisma } from '@prisma/client';
 import { UserRole } from '@kletak/contracts';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withSerializableRetry } from '../../common/database/transaction.util';
 import { bigintToNumber } from '../../common/utils/serialize';
 import { CreateStockMovementDto, InventoryQueryDto, MovementTypeDto } from './dto/inventory.dto';
 
@@ -75,7 +76,7 @@ export class InventoryService {
     const outletId = await this.resolveOutletId(user);
     if (!outletId) throw new ConflictException('Outlet belum dikonfigurasi');
 
-    return this.prisma.$transaction(async (tx) => {
+    return withSerializableRetry(this.prisma, async (tx) => {
       const product = await tx.product.findFirst({ where: { id: input.productId, outletId } });
       if (!product) throw new NotFoundException('Produk tidak ditemukan');
 
@@ -95,6 +96,9 @@ export class InventoryService {
             ? product.stock + input.quantity
             : product.stock - input.quantity;
         if (stockAfter < 0) throw new ConflictException('Stok tidak mencukupi');
+      }
+      if (stockAfter < product.reservedStock) {
+        throw new ConflictException('Stok tidak boleh lebih kecil dari stok yang direservasi');
       }
 
       const updated = await tx.product.update({
