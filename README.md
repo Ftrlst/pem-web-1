@@ -46,18 +46,21 @@ Compose menyediakan tiga entrypoint:
 
 ## MySQL lokal (MySQL Workbench)
 
-Buat database dan user di MySQL Workbench (charset `utf8mb4`, collation `utf8mb4_unicode_ci`), lalu samakan kredensial dengan `.env`:
+Project ini memakai **MySQL 8.0+**, bukan MariaDB. Di mesin lokal ini port 3306 dipakai MariaDB 10.4 (menyimpan database project lain), sehingga MySQL 8.0 dipindahkan ke port **3307**.
 
-```sql
-CREATE DATABASE kletak CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE kletak_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'kletak'@'localhost' IDENTIFIED BY 'ganti-password-kuat';
-GRANT ALL PRIVILEGES ON kletak.* TO 'kletak'@'localhost';
-GRANT ALL PRIVILEGES ON kletak_test.* TO 'kletak'@'localhost';
-FLUSH PRIVILEGES;
-```
+1. Jalankan MySQL 8.0 di port 3307 (PowerShell sebagai Administrator):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\start-mysql8-on-3307.ps1
+   ```
+2. Di MySQL Workbench, sambungkan ke MySQL 8.0 port 3307, muat dan jalankan `infra/mysql/bootstrap.sql` (ganti passwordnya lebih dulu).
+3. Samakan kredensial di `.env` dan `apps/api/.env`:
+   ```dotenv
+   MYSQL_PORT=3307
+   DATABASE_URL=mysql://kletak:GantiPasswordKuat123@127.0.0.1:3307/kletak
+   TEST_DATABASE_URL=mysql://kletak:GantiPasswordKuat123@127.0.0.1:3307/kletak_test
+   ```
 
-`DATABASE_URL` harus berbentuk `mysql://user:password@127.0.0.1:3306/kletak`. Jangan memakai MySQL Workbench sebagai pengganti PostgreSQL; project ini sudah dikonfigurasi khusus MySQL 8.4+.
+Panduan lengkap dan troubleshooting ada di `docs/mysql-local-setup.md`.
 
 ## Workspace commands
 
