@@ -8,6 +8,8 @@ RUN corepack enable && pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 WORKDIR /app
+ARG DATABASE_URL=mysql://build:build@127.0.0.1:3306/build
+ENV DATABASE_URL=$DATABASE_URL
 COPY . .
 RUN pnpm --filter @kletak/contracts build && pnpm db:generate && pnpm --filter @kletak/api build
 

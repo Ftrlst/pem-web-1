@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DATABASE_URL: postgresql://kletak:kletak@localhost:5432/kletak_test?schema=public
-  TEST_DATABASE_URL: postgresql://kletak:kletak@localhost:5432/kletak_test?schema=public
+  DATABASE_URL: mysql://kletak:kletak@127.0.0.1:3306/kletak_test
+  TEST_DATABASE_URL: mysql://kletak:kletak@127.0.0.1:3306/kletak_test
   JWT_ACCESS_SECRET: ci-only-access-secret-please-change-32
   JWT_REFRESH_SECRET: ci-only-refresh-secret-please-change-32
   NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
@@ -23,21 +23,22 @@ env:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
-      postgres:
-        image: postgres:16-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_DB: kletak_test
-          POSTGRES_USER: kletak
-          POSTGRES_PASSWORD: kletak
+          MYSQL_DATABASE: kletak_test
+          MYSQL_USER: kletak
+          MYSQL_PASSWORD: kletak
+          MYSQL_ROOT_PASSWORD: root
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd "pg_isready -U kletak -d kletak_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,32 +54,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
         run: pnpm db:generate
       - name: Validate Prisma schema
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+        run: pnpm --filter @kletak/api exec prisma validate
       - name: Apply database migrations
         run: pnpm db:migrate:deploy
       - name: Typecheck
         run: pnpm typecheck
       - name: Unit tests
         run: pnpm test
-      - name: PostgreSQL integration tests
+      - name: MySQL integration tests
         run: pnpm test:integration
       - name: Build
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-          JWT_ACCESS_SECRET: ci-only-access-secret-please-change-32
-          JWT_REFRESH_SECRET: ci-only-refresh-secret-please-change-32
-          NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
         run: pnpm build
 
   docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     needs: quality
     steps:
       - uses: actions/checkout@v4

@@ -9,7 +9,7 @@ Blueprint membutuhkan MVP yang jelas dan mudah diskalakan, tanpa biaya operasion
 
 ## Decision
 
-Menggunakan satu NestJS API sebagai modular monolith. Batas domain tetap dipisah di folder/service. Semua perubahan penting ditulis ke `outbox_event` dalam transaksi PostgreSQL yang sama. Baseline memproses outbox secara idempotent; adapter Redis + BullMQ dapat ditambahkan tanpa mengubah kontrak event.
+Menggunakan satu NestJS API sebagai modular monolith. Batas domain tetap dipisah di folder/service. Semua perubahan penting ditulis ke `outbox_event` dalam transaksi MySQL yang sama. Baseline memproses outbox secara idempotent; adapter Redis + BullMQ dapat ditambahkan tanpa mengubah kontrak event.
 
 ## Consequences
 

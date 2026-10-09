@@ -23,7 +23,7 @@ Arah **modular monolith + event-driven** sudah tepat untuk MVP dan lebih mudah d
 ### Yang sudah baik
 
 - Pemisahan bounded context (`order`, `inventory`, `payment`, `chat`, `accounting`) jelas.
-- PostgreSQL dipilih tepat karena order, inventory, payment, dan accounting membutuhkan transaksi ACID.
+- MySQL dipilih untuk implementasi karena merupakan platform operasional yang tersedia di lingkungan deployment; order, inventory, payment, dan accounting tetap membutuhkan transaksi ACID.
 - State machine pesanan, pembayaran, dan stok sudah diperiksa.
 - Ada awareness terhadap idempotensi webhook, audit log, RBAC, PWA, queue, monitoring, dan deployment.
 - Roadmap bertahap memisahkan MVP dari integrasi eksternal.
@@ -60,7 +60,7 @@ Arah **modular monolith + event-driven** sudah tepat untuk MVP dan lebih mudah d
 
 7. **Observability dan operational readiness**
    - Availability `>99,5%` perlu SLO, alert, backup, restore drill, RPO/RTO, health/readiness endpoint, dan runbook.
-   - Satu VM + PostgreSQL self-hosted harus punya backup terenkripsi dan monitoring; Kubernetes tidak perlu untuk MVP.
+   - Satu VM + MySQL self-hosted harus punya backup terenkripsi dan monitoring; Kubernetes tidak perlu untuk MVP.
 
 8. **API contract**
    - Blueprint memakai path tanpa versi dan beberapa path tidak konsisten (`/orders{id}`).
@@ -71,17 +71,19 @@ Arah **modular monolith + event-driven** sudah tepat untuk MVP dan lebih mudah d
 | Area | Keputusan |
 |---|---|
 | Runtime | Node.js 22/24 LTS, TypeScript |
-| Monorepo | npm workspaces: `apps/web`, `apps/api`, `packages/contracts` |
+| Monorepo | pnpm workspaces: `apps/web`, `apps/api`, `packages/contracts` |
 | Frontend | Next.js App Router, React, CSS mobile-first, PWA |
 | Backend | NestJS modular monolith |
-| Database | PostgreSQL 16+ |
-| Queue | Transactional outbox PostgreSQL di baseline; Redis + BullMQ menjadi adapter queue untuk notification/invoice pada fase berikutnya |
+| Database | MySQL 8.4+ |
+| Queue | Transactional outbox MySQL di baseline; Redis + BullMQ menjadi adapter queue untuk notification/invoice pada fase berikutnya |
 | Auth | JWT access pendek + refresh rotation di cookie HttpOnly, Argon2id, RBAC + outlet scope |
 | Uang | integer rupiah (`BIGINT`), tanpa floating point |
-| Waktu | `TIMESTAMPTZ`, display `Asia/Jakarta` |
+| Waktu | `DATETIME(3)` dengan konfigurasi sesi `Asia/Jakarta` |
 | Payment | `PaymentProvider` adapter; manual/transfer untuk baseline, Midtrans/Xendit nanti |
 | Observability | structured log + request ID, health/readiness, metrics hook, Sentry-compatible DSN |
 | CI/CD | GitHub Actions, CodeQL, dependency review, image scan, SBOM, preview/staging/production promotion |
+
+> **Catatan keputusan database:** blueprint awal merekomendasikan PostgreSQL. Repository ini sengaja dimigrasikan ke MySQL 8.4 agar sesuai dengan platform operasional yang tersedia. Prisma schema, migration SQL, Docker Compose, CI service, dan integration test harus selalu menggunakan MySQL; jangan mencampur URL atau dialect PostgreSQL.
 
 ## 4. Model transaksi yang dipilih
 
@@ -109,7 +111,7 @@ Order tidak boleh dianggap lunas hanya karena redirect browser; hanya callback t
 
 - struktur monorepo dan contracts;
 - konfigurasi environment yang tervalidasi;
-- PostgreSQL schema/migration dan seed;
+- MySQL schema/migration dan seed;
 - health/readiness, error envelope, request ID;
 - auth register/login/refresh/logout, RBAC;
 - katalog, order, reservation, inventory, payment manual;

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -92,12 +92,12 @@ enum ChatSenderType {
 }
 
 model Outlet {
-  id             String          @id @default(uuid()) @db.Uuid
+  id             String          @id @default(uuid()) @db.Char(36)
   name           String
   slug           String          @unique
   timezone       String          @default("Asia/Jakarta")
-  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @db.DateTime(3)
+  updatedAt      DateTime        @updatedAt @db.DateTime(3)
   users          User[]
   products       Product[]
   orders         Order[]
@@ -107,16 +107,16 @@ model Outlet {
 }
 
 model User {
-  id              String               @id @default(uuid()) @db.Uuid
-  outletId        String?              @db.Uuid
+  id              String               @id @default(uuid()) @db.Char(36)
+  outletId        String?              @db.Char(36)
   name            String
   email           String               @unique
   phone           String?
   passwordHash    String
   role            UserRole             @default(CUSTOMER)
   isActive        Boolean              @default(true)
-  createdAt       DateTime             @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime             @updatedAt @db.Timestamptz(6)
+  createdAt       DateTime             @default(now()) @db.DateTime(3)
+  updatedAt       DateTime             @updatedAt @db.DateTime(3)
   outlet          Outlet?              @relation(fields: [outletId], references: [id], onDelete: SetNull)
   orders          Order[]
   createdProducts Product[]            @relation("ProductCreator")
@@ -131,13 +131,13 @@ model User {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
+  id        String    @id @default(uuid()) @db.Char(36)
+  userId    String    @db.Char(36)
   tokenHash String    @unique
   familyId  String
-  expiresAt DateTime  @db.Timestamptz(6)
-  revokedAt DateTime? @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime  @db.DateTime(3)
+  revokedAt DateTime? @db.DateTime(3)
+  createdAt DateTime  @default(now()) @db.DateTime(3)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
@@ -145,9 +145,9 @@ model RefreshToken {
 }
 
 model Product {
-  id             String                 @id @default(uuid()) @db.Uuid
-  outletId       String                 @db.Uuid
-  createdById    String?                @db.Uuid
+  id             String                 @id @default(uuid()) @db.Char(36)
+  outletId       String                 @db.Char(36)
+  createdById    String?                @db.Char(36)
   name           String
   category       String
   priceIdr       BigInt
@@ -157,8 +157,8 @@ model Product {
   description    String?
   imageUrl       String?
   isActive       Boolean                @default(true)
-  createdAt      DateTime               @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime               @updatedAt @db.Timestamptz(6)
+  createdAt      DateTime               @default(now()) @db.DateTime(3)
+  updatedAt      DateTime               @updatedAt @db.DateTime(3)
   outlet         Outlet                 @relation(fields: [outletId], references: [id], onDelete: Cascade)
   createdBy      User?                  @relation("ProductCreator", fields: [createdById], references: [id], onDelete: SetNull)
   orderItems     OrderItem[]
@@ -172,9 +172,9 @@ model Product {
 }
 
 model Order {
-  id                String                 @id @default(uuid()) @db.Uuid
-  outletId          String                 @db.Uuid
-  userId            String?                @db.Uuid
+  id                String                 @id @default(uuid()) @db.Char(36)
+  outletId          String                 @db.Char(36)
+  userId            String?                @db.Char(36)
   orderNumber       String                 @unique
   idempotencyKey    String?
   status            OrderStatus            @default(PENDING)
@@ -190,8 +190,8 @@ model Order {
   totalIdr          BigInt
   customerNote      String?
   trackingTokenHash String?
-  createdAt         DateTime               @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime               @updatedAt @db.Timestamptz(6)
+  createdAt         DateTime               @default(now()) @db.DateTime(3)
+  updatedAt         DateTime               @updatedAt @db.DateTime(3)
   outlet            Outlet                 @relation(fields: [outletId], references: [id], onDelete: Restrict)
   user              User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   items             OrderItem[]
@@ -207,9 +207,9 @@ model Order {
 }
 
 model OrderItem {
-  id           String  @id @default(uuid()) @db.Uuid
-  orderId      String  @db.Uuid
-  productId    String  @db.Uuid
+  id           String  @id @default(uuid()) @db.Char(36)
+  orderId      String  @db.Char(36)
+  productId    String  @db.Char(36)
   productName  String
   quantity     Int
   unitPriceIdr BigInt
@@ -222,13 +222,13 @@ model OrderItem {
 }
 
 model OrderStatusHistory {
-  id          String       @id @default(uuid()) @db.Uuid
-  orderId     String       @db.Uuid
+  id          String       @id @default(uuid()) @db.Char(36)
+  orderId     String       @db.Char(36)
   fromStatus  OrderStatus?
   toStatus    OrderStatus
-  changedById String?      @db.Uuid
+  changedById String?      @db.Char(36)
   note        String?
-  createdAt   DateTime     @default(now()) @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @db.DateTime(3)
   order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   changedBy   User?        @relation("StatusChanger", fields: [changedById], references: [id], onDelete: SetNull)
 
@@ -236,14 +236,14 @@ model OrderStatusHistory {
 }
 
 model InventoryReservation {
-  id         String            @id @default(uuid()) @db.Uuid
-  orderId    String            @db.Uuid
-  productId  String            @db.Uuid
+  id         String            @id @default(uuid()) @db.Char(36)
+  orderId    String            @db.Char(36)
+  productId  String            @db.Char(36)
   quantity   Int
   status     ReservationStatus @default(ACTIVE)
-  expiresAt  DateTime          @db.Timestamptz(6)
-  createdAt  DateTime          @default(now()) @db.Timestamptz(6)
-  releasedAt DateTime?         @db.Timestamptz(6)
+  expiresAt  DateTime          @db.DateTime(3)
+  createdAt  DateTime          @default(now()) @db.DateTime(3)
+  releasedAt DateTime?         @db.DateTime(3)
   order      Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product    Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
 
@@ -252,10 +252,10 @@ model InventoryReservation {
 }
 
 model StockMovement {
-  id            String              @id @default(uuid()) @db.Uuid
-  outletId      String              @db.Uuid
-  productId     String              @db.Uuid
-  createdById   String?             @db.Uuid
+  id            String              @id @default(uuid()) @db.Char(36)
+  outletId      String              @db.Char(36)
+  productId     String              @db.Char(36)
+  createdById   String?             @db.Char(36)
   type          ProductMovementType
   quantity      Int
   stockBefore   Int
@@ -263,7 +263,7 @@ model StockMovement {
   reason        String
   referenceType String?
   referenceId   String?
-  createdAt     DateTime            @default(now()) @db.Timestamptz(6)
+  createdAt     DateTime            @default(now()) @db.DateTime(3)
   outlet        Outlet              @relation(fields: [outletId], references: [id], onDelete: Restrict)
   product       Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
   createdBy     User?               @relation("StockMovementActor", fields: [createdById], references: [id], onDelete: SetNull)
@@ -273,19 +273,19 @@ model StockMovement {
 }
 
 model Payment {
-  id                    String        @id @default(uuid()) @db.Uuid
-  outletId              String        @db.Uuid
-  orderId               String        @db.Uuid
+  id                    String        @id @default(uuid()) @db.Char(36)
+  outletId              String        @db.Char(36)
+  orderId               String        @db.Char(36)
   provider              String        @default("MANUAL")
   providerTransactionId String?
   idempotencyKey        String?
   method                PaymentMethod
   amountIdr             BigInt
   status                PaymentStatus @default(UNPAID)
-  paidAt                DateTime?     @db.Timestamptz(6)
+  paidAt                DateTime?     @db.DateTime(3)
   metadata              Json?
-  createdAt             DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt             DateTime      @updatedAt @db.Timestamptz(6)
+  createdAt             DateTime      @default(now()) @db.DateTime(3)
+  updatedAt             DateTime      @updatedAt @db.DateTime(3)
   outlet                Outlet        @relation(fields: [outletId], references: [id], onDelete: Restrict)
   order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
@@ -296,40 +296,40 @@ model Payment {
 }
 
 model WebhookEvent {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid()) @db.Char(36)
   provider    String
   eventId     String
   payloadHash String
   status      String    @default("RECEIVED")
   error       String?
-  receivedAt  DateTime  @default(now()) @db.Timestamptz(6)
-  processedAt DateTime? @db.Timestamptz(6)
+  receivedAt  DateTime  @default(now()) @db.DateTime(3)
+  processedAt DateTime? @db.DateTime(3)
 
   @@unique([provider, eventId])
   @@index([status, receivedAt])
 }
 
 model OutboxEvent {
-  id            String       @id @default(uuid()) @db.Uuid
+  id            String       @id @default(uuid()) @db.Char(36)
   aggregateType String
-  aggregateId   String       @db.Uuid
+  aggregateId   String       @db.Char(36)
   eventType     String
   payload       Json
   status        OutboxStatus @default(PENDING)
   attempts      Int          @default(0)
-  availableAt   DateTime     @default(now()) @db.Timestamptz(6)
-  publishedAt   DateTime?    @db.Timestamptz(6)
+  availableAt   DateTime     @default(now()) @db.DateTime(3)
+  publishedAt   DateTime?    @db.DateTime(3)
   lastError     String?
-  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  createdAt     DateTime     @default(now()) @db.DateTime(3)
 
   @@index([status, availableAt])
   @@index([aggregateType, aggregateId])
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  outletId   String?  @db.Uuid
-  actorId    String?  @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
+  outletId   String?  @db.Char(36)
+  actorId    String?  @db.Char(36)
   action     String
   entityType String
   entityId   String
@@ -337,7 +337,7 @@ model AuditLog {
   newValue   Json?
   requestId  String?
   ipAddress  String?
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
 
   @@index([entityType, entityId, createdAt])
   @@index([outletId, createdAt])
@@ -345,13 +345,13 @@ model AuditLog {
 }
 
 model ChatRoom {
-  id            String        @id @default(uuid()) @db.Uuid
-  outletId      String        @db.Uuid
-  customerId    String?       @db.Uuid
-  sellerId      String?       @db.Uuid
-  orderId       String?       @db.Uuid
-  lastMessageAt DateTime?     @db.Timestamptz(6)
-  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  id            String        @id @default(uuid()) @db.Char(36)
+  outletId      String        @db.Char(36)
+  customerId    String?       @db.Char(36)
+  sellerId      String?       @db.Char(36)
+  orderId       String?       @db.Char(36)
+  lastMessageAt DateTime?     @db.DateTime(3)
+  createdAt     DateTime      @default(now()) @db.DateTime(3)
   outlet        Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
   customer      User?         @relation("CustomerRooms", fields: [customerId], references: [id], onDelete: SetNull)
   seller        User?         @relation("SellerRooms", fields: [sellerId], references: [id], onDelete: SetNull)
@@ -363,14 +363,14 @@ model ChatRoom {
 }
 
 model ChatMessage {
-  id            String         @id @default(uuid()) @db.Uuid
-  roomId        String         @db.Uuid
-  senderId      String?        @db.Uuid
+  id            String         @id @default(uuid()) @db.Char(36)
+  roomId        String         @db.Char(36)
+  senderId      String?        @db.Char(36)
   senderType    ChatSenderType
   message       String
   attachmentUrl String?
   isRead        Boolean        @default(false)
-  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+  createdAt     DateTime       @default(now()) @db.DateTime(3)
   room          ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   sender        User?          @relation(fields: [senderId], references: [id], onDelete: SetNull)
 
@@ -378,26 +378,26 @@ model ChatMessage {
 }
 
 model ChartOfAccount {
-  id        String        @id @default(uuid()) @db.Uuid
+  id        String        @id @default(uuid()) @db.Char(36)
   code      String        @unique
   name      String
   type      AccountType
   category  String?
   isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now()) @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @db.DateTime(3)
   lines     JournalLine[]
 }
 
 model JournalEntry {
-  id              String        @id @default(uuid()) @db.Uuid
+  id              String        @id @default(uuid()) @db.Char(36)
   entryNumber     String        @unique
   entryDate       DateTime      @db.Date
   description     String
   referenceId     String?
   referenceType   String?
   status          JournalStatus @default(POSTED)
-  reversedEntryId String?       @unique @db.Uuid
-  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  reversedEntryId String?       @unique @db.Char(36)
+  createdAt       DateTime      @default(now()) @db.DateTime(3)
   reversedEntry   JournalEntry? @relation("JournalReversal", fields: [reversedEntryId], references: [id], onDelete: Restrict)
   originalEntry   JournalEntry? @relation("JournalReversal")
   lines           JournalLine[]
@@ -408,9 +408,9 @@ model JournalEntry {
 }
 
 model JournalLine {
-  id             String         @id @default(uuid()) @db.Uuid
-  journalEntryId String         @db.Uuid
-  accountId      String         @db.Uuid
+  id             String         @id @default(uuid()) @db.Char(36)
+  journalEntryId String         @db.Char(36)
+  accountId      String         @db.Char(36)
   accountCode    String
   debitIdr       BigInt         @default(0)
   creditIdr      BigInt         @default(0)

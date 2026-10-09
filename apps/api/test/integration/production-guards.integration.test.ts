@@ -38,7 +38,7 @@ function orderInput(
   } as CreateOrderDto;
 }
 
-describeDb('production guards against PostgreSQL', () => {
+describeDb('production guards against MySQL', () => {
   let prisma: PrismaClient;
   let orders: OrdersService;
   let payments: PaymentsService;
@@ -117,9 +117,13 @@ describeDb('production guards against PostgreSQL', () => {
   afterAll(async () => {
     if (prisma) {
       if (isTestDatabase) {
-        await prisma.$executeRawUnsafe(
-          'TRUNCATE TABLE "JournalLine", "JournalEntry", "ChatMessage", "ChatRoom", "AuditLog", "OutboxEvent", "WebhookEvent", "StockMovement", "InventoryReservation", "Payment", "OrderItem", "OrderStatusHistory", "Order", "Product", "RefreshToken", "User", "Outlet", "ChartOfAccount" CASCADE',
-        );
+        await prisma.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+          await tx.$executeRawUnsafe(
+            'TRUNCATE TABLE `JournalLine`, `JournalEntry`, `ChatMessage`, `ChatRoom`, `AuditLog`, `OutboxEvent`, `WebhookEvent`, `StockMovement`, `InventoryReservation`, `Payment`, `OrderItem`, `OrderStatusHistory`, `Order`, `Product`, `RefreshToken`, `User`, `Outlet`, `ChartOfAccount`',
+          );
+          await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+        });
       }
       await prisma.$disconnect();
     }

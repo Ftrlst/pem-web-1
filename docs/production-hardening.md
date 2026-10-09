@@ -41,13 +41,13 @@ Baseline hardening yang diterapkan setelah review `722a499`:
 - webhook replay dan amount mismatch;
 - refresh-token rotation/reuse.
 
-Test integrasi berjalan otomatis di GitHub Actions dengan PostgreSQL service. Secara lokal, test dilewati bila `TEST_DATABASE_URL` belum diisi.
+Test integrasi berjalan otomatis di GitHub Actions dengan MySQL service. Secara lokal, test dilewati bila `TEST_DATABASE_URL` belum diisi.
 
 ## Perintah validasi
 
 ```bash
 pnpm typecheck
 pnpm test
-TEST_DATABASE_URL=postgresql://... pnpm test:integration
+TEST_DATABASE_URL=mysql://... pnpm test:integration
 pnpm build
 ```
