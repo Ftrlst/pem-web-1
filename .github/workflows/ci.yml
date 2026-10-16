@@ -51,7 +51,24 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        id: install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+      - name: Surface install diagnostics
+        if: always() && steps.install.outcome == 'failure'
+        run: |
+          {
+            echo "### pnpm install failed"
+            echo '```text'
+            tail -n 60 install.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "::error title=pnpm install failed::"
+            tail -n 12 install.log | tr '\n' '%0A'
+          }
       - name: Generate Prisma client
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
