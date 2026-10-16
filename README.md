@@ -10,8 +10,6 @@ Blueprint sumber ada di `blueprint_kletak-kletik-snack.docx`. Analisis dan keput
 - `apps/api` — NestJS modular monolith, REST/OpenAPI, Prisma/MySQL
 - `packages/contracts` — schema Zod dan tipe bersama
 - Redis + BullMQ — target queue adapter; baseline memakai transactional outbox MySQL
-
-Setup database lokal via MySQL Workbench ada di `docs/mysql-local-setup.md`.
 - GitHub Actions — CI, security scanning, build, dan deployment promotion
 
 ## Menjalankan lokal
