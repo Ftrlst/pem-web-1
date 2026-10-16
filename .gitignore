@@ -34,3 +34,8 @@ prisma/dev.db
 # OS
 *.pem
 *.key
+desktop.ini
+
+# Office lock files (~$ prefix, contoh: ~$blueprint.docx)
+~$*
+.~lock.*
