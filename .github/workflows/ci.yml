@@ -51,22 +51,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Install dependencies
-        id: install
-        continue-on-error: true
         run: |
           set -o pipefail
-          pnpm install --frozen-lockfile 2>&1 | tee install.log
-      - name: Surface install diagnostics
-        if: always() && steps.install.outcome == 'failure'
-        run: |
-          {
-            echo "### pnpm install failed"
-            echo '```text'
-            tail -n 60 install.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          {
+          pnpm install --frozen-lockfile 2>&1 | tee install.log || {
             echo "::error title=pnpm install failed::$(tail -n 12 install.log | tr '\n' '%0A')"
+            exit 1
           }
       - name: Generate Prisma client
         env:
@@ -117,3 +106,10 @@ jobs:
           tags: kletak-web:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Surface image build failure
+        if: failure()
+        run: |
+          set -o pipefail
+          docker build --progress=plain --file infra/api.Dockerfile --tag kletak-api:diag . 2>&1 \
+            | tee diag-build.log || true
+          echo "::error title=api image build::$(tail -n 20 diag-build.log | tr '\n' '%0A')"

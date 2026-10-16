@@ -1,13 +1,17 @@
 FROM node:22-alpine AS dependencies
 WORKDIR /app
+ARG PNPM_VERSION=12.6.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN npm install -g "pnpm@${PNPM_VERSION}" && pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 WORKDIR /app
+# Prisma hanya membaca env saat generate; tidak ada koneksi ke database.
+ARG DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
+ENV DATABASE_URL=$DATABASE_URL
 COPY . .
 RUN pnpm --filter @kletak/contracts build && pnpm db:generate && pnpm --filter @kletak/api build
 
