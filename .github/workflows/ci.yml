@@ -127,10 +127,3 @@ jobs:
           tags: kletak-web:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Surface image build failure
-        if: failure()
-        run: |
-          set -o pipefail
-          docker build --progress=plain --file infra/api.Dockerfile --tag kletak-api:diag . 2>&1 \
-            | tee diag-build.log || true
-          echo "::error title=api image build::$(tail -n 20 diag-build.log | tr '\n' '%0A')"

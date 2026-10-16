@@ -13,6 +13,17 @@ import { CreatePaymentDto } from '../../src/modules/payments/dto/payments.dto';
 import { AuthService } from '../../src/modules/auth/auth.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? '';
+
+// Guard: di CI, suite WAJIB benar-benar jalan. Kalau env kosong atau tidak
+// menunjuk database pengujian, error-nya jangan sampai silent skip yang
+// membuat pipeline hijau padahal tidak ada yang diuji.
+if (process.env.CI === 'true' && !/test/i.test(databaseUrl)) {
+  throw new Error(
+    'TEST_DATABASE_URL wajib menunjuk database pengujian (URL harus mengandung "test") saat CI. ' +
+      `Nilai saat ini: ${databaseUrl ? '"' + databaseUrl + '"' : '(kosong)'}`,
+  );
+}
+
 const describeDb = databaseUrl ? describe : describe.skip;
 const isTestDatabase = /test/i.test(databaseUrl);
 const password = 'IntegrationTest123!';
