@@ -60,26 +60,47 @@ jobs:
       - name: Generate Prisma client
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-        run: pnpm db:generate
+        run: |
+          set -o pipefail
+          pnpm db:generate 2>&1 | tee step-generate.log
       - name: Validate Prisma schema
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-        run: pnpm db:validate
+        run: |
+          set -o pipefail
+          pnpm db:validate 2>&1 | tee step-validate.log
       - name: Apply database migrations
-        run: pnpm db:migrate:deploy
+        run: |
+          set -o pipefail
+          pnpm db:migrate:deploy 2>&1 | tee step-migrate.log
       - name: Typecheck
-        run: pnpm typecheck
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee step-typecheck.log
       - name: Unit tests
-        run: pnpm test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee step-unit.log
       - name: PostgreSQL integration tests
-        run: pnpm test:integration
+        run: |
+          set -o pipefail
+          pnpm test:integration 2>&1 | tee step-integration.log
       - name: Build
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           JWT_ACCESS_SECRET: ci-only-access-secret-please-change-32
           JWT_REFRESH_SECRET: ci-only-refresh-secret-please-change-32
           NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
-        run: pnpm build
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee step-build.log
+      - name: Surface failure diagnostics
+        if: failure()
+        run: |
+          shopt -s nullglob
+          for f in step-*.log; do
+            echo "::error title=${f%.log}::$(tail -n 12 "$f" | tr '\n' '%0A')"
+          done
 
   docker:
     runs-on: ubuntu-latest
