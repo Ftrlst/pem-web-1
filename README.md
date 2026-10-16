@@ -7,9 +7,9 @@ Blueprint sumber ada di `blueprint_kletak-kletik-snack.docx`. Analisis dan keput
 ## Stack
 
 - `apps/web` — Next.js App Router, React, TypeScript, PWA shell
-- `apps/api` — NestJS modular monolith, REST/OpenAPI, Prisma/MySQL
+- `apps/api` — NestJS modular monolith, REST/OpenAPI, Prisma/PostgreSQL
 - `packages/contracts` — schema Zod dan tipe bersama
-- Redis + BullMQ — target queue adapter; baseline memakai transactional outbox MySQL
+- Redis + BullMQ — target queue adapter; baseline memakai transactional outbox PostgreSQL
 - GitHub Actions — CI, security scanning, build, dan deployment promotion
 
 ## Menjalankan lokal
@@ -42,21 +42,6 @@ Compose menyediakan tiga entrypoint:
 - API langsung: `http://localhost:4000/api/v1`
 - Gateway Nginx: `http://localhost:8080` (rekomendasi untuk pengujian same-origin)
 
-## MySQL lokal (MySQL Workbench)
-
-Buat database dan user di MySQL Workbench (charset `utf8mb4`, collation `utf8mb4_unicode_ci`), lalu samakan kredensial dengan `.env`:
-
-```sql
-CREATE DATABASE kletak CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE kletak_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'kletak'@'localhost' IDENTIFIED BY 'ganti-password-kuat';
-GRANT ALL PRIVILEGES ON kletak.* TO 'kletak'@'localhost';
-GRANT ALL PRIVILEGES ON kletak_test.* TO 'kletak'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-`DATABASE_URL` harus berbentuk `mysql://user:password@127.0.0.1:3306/kletak`. Jangan memakai MySQL Workbench sebagai pengganti PostgreSQL; project ini sudah dikonfigurasi khusus MySQL 8.4+.
-
 ## Workspace commands
 
 ```bash
@@ -64,8 +49,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm format:check
-# Memerlukan MySQL test database (TEST_DATABASE_URL)
-TEST_DATABASE_URL=mysql://... pnpm test:integration
+# Memerlukan PostgreSQL test database (TEST_DATABASE_URL)
+TEST_DATABASE_URL=postgresql://... pnpm test:integration
 ```
 
 ## Environment

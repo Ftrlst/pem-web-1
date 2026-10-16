@@ -5,7 +5,7 @@
 - Liveness: `GET /api/v1/health/live`
 - Readiness: `GET /api/v1/health/ready`
 
-Readiness harus gagal jika MySQL tidak dapat dijangkau. Ingress tidak boleh mengirim traffic ke pod yang belum ready.
+Readiness harus gagal jika PostgreSQL tidak dapat dijangkau. Ingress tidak boleh mengirim traffic ke pod yang belum ready.
 
 ## Database
 
@@ -19,8 +19,8 @@ Readiness harus gagal jika MySQL tidak dapat dijangkau. Ingress tidak boleh meng
 
 - Payment webhook failure: pause provider reconciliation, inspect `webhook_event`, retry dari queue, do not manually mark paid tanpa evidence.
 - Oversell/negative stock: stop order creation, inspect reservations and movements, reconcile stock, then re-enable setelah verification.
-- Redis down: API dapat mempertahankan state di MySQL; queue consumer harus retry/backoff.
-- Database unavailable: keep API unready, investigate connection pool/MySQL, restore only after confirming data integrity.
+- Redis down: API dapat mempertahankan state di PostgreSQL; queue consumer harus retry/backoff.
+- Database unavailable: keep API unready, investigate connection pool/PostgreSQL, restore only after confirming data integrity.
 
 ## Release
 
