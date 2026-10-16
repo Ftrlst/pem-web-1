@@ -66,8 +66,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           {
-            echo "::error title=pnpm install failed::"
-            tail -n 12 install.log | tr '\n' '%0A'
+            echo "::error title=pnpm install failed::$(tail -n 12 install.log | tr '\n' '%0A')"
           }
       - name: Generate Prisma client
         env:
@@ -76,7 +75,7 @@ jobs:
       - name: Validate Prisma schema
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+        run: pnpm db:validate
       - name: Apply database migrations
         run: pnpm db:migrate:deploy
       - name: Typecheck

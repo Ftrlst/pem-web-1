@@ -16,6 +16,7 @@
     "test:integration": "pnpm --filter @kletak/api test:integration",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @kletak/api prisma:generate",
+    "db:validate": "pnpm --filter @kletak/api prisma:validate",
     "db:migrate": "pnpm --filter @kletak/api prisma:migrate",
     "db:migrate:deploy": "pnpm --filter @kletak/api prisma:migrate:deploy",
     "db:seed": "pnpm --filter @kletak/api prisma:seed"
