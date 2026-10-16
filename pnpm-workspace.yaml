@@ -1,3 +1,18 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm >= 10 memblokir postinstall script dependensi kecuali didaftarkan secara eksplisit.
+# Kalau tidak, install gagal dengan ERR_PNPM_IGNORED_BUILDS.
+# Daftar di bawah adalah paket yang benar-benar butuh postinstall:
+#   - prisma / @prisma/engines / @prisma/client  -> mengunduh engine + generate client
+#   - argon2                                     -> membangun binding native (node-gyp)
+#   - esbuild                                    -> memasang binary sesuai platform
+#   - @scarf/scarf                               -> telemetry dependensi esbuild
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - argon2
+  - esbuild
+  - prisma
