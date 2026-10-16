@@ -22,9 +22,9 @@
     "db:seed": "pnpm --filter @kletak/api prisma:seed"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "prettier": "^3.5.3",
-    "typescript": "^5.7.3"
+    "concurrently": "^10.0.6",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=22.14.0"
